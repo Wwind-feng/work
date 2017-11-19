@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Document</title>
+	<script src="js/vue.js"></script>
+	<style>
+	*{margin:0;padding:0;}
+	ul{list-style:none;}
+	body{font-family:"micosoft yahei";font-size:14px;color:#000;}
+	h1{padding:30px;text-align:center;}
+	/* web start */
+	.web{width:900px;margin-right:auto;margin-left:auto;}
+	.web-list{margin-bottom:10px;}
+	.web tr.active td{background:linear-gradient(#f5f5f5,#ccc);}
+	.web table{width:100%;border-collapse:collapse;}
+	.web th,td{padding:6px 10px;border:1px solid #999;text-align:center;}
+	.web th{background-color:#ddd;}
+	.web td a.del,
+	.web td a.edit,
+	.web td input[type="button"]{display:inline-block;padding:3px 12px;margin:0 5px;border:1px solid #888;color:#000;border-radius:3px;background:linear-gradient(#b0b0b0,#f0f0f0);text-decoration:none;outline:none;}
+	.web td a.del:hover,
+	.web td a.edit:hover,
+	.web td input[type="button"]:hover{border-color:#666;}
+	.web td a.del:active,
+	.web td a.edit:active,
+	.web td input[type="button"]:active{background:linear-gradient(#888,#ddd);}
+	.web input[type="text"],
+	.web select{padding:3px 5px;}
+	.web-page{padding-top:10px;text-align:center;padding-bottom:10px;}
+	.web-page button{display:inline-block;padding:4px 12px;margin:0 2px;border:1px solid #888;color:#000;border-radius:3px;background:linear-gradient(#b0b0b0,#f1f1f1);text-decoration:none;outline:none;cursor:pointer;}
+	.web-page button:hover{border-color:#333;}
+
+	.web-page button.active{background:linear-gradient(#333,#666);background-color:#333;border-color:#333;color:#fff;cursor:default;}
+	</style>
+</head>
+<body>
+	<h1>网址导航</h1>
+	<div class="web" id="vm">
+		<div class="web-list">
+			<table>
+				<tr>
+					<td colspan="5" style="border:none;padding:5px 0;">
+						<select style="float:left;" v-model="selected">
+							<option value="">请选择排序对象</option>
+							<option value="name">网站名称</option>
+							<option value="url">网址</option>
+							<option value="star">好评度</option>
+						</select>
+						<input type="text" style="float:left;" v-model="keyword">
+						<button style="float:right;" @click='checkeddel'>批量删除</button>
+					</td>
+				</tr>
+				<tr>
+					<th width="8%"><input type="checkbox" v-model="checkBox.checked" @click="checkAll"></th>
+					<th width="25%">网站名称</th>
+					<th>网址</th>
+					<th width="15%">好评度</th>
+					<th width="18%">操作</th>
+				</tr>
+				<tr v-for="(x,index) in search" :class="{active:x.checked}">
+					<td><input type="checkbox" v-model="x.checked" @click="checkItem(index)"></td>
+					<td>
+						<template v-if="x.edit=='修改'">{{x.name}}</template>
+						<template v-else><input type="text" v-model.trim="x.name"></template>
+					</td>
+					<td>
+						<template v-if="x.edit=='修改'">{{x.url}}</template>
+						<template v-else><input type="text" v-model.trim="x.url"></template>
+					</td>
+					<td>
+						<template v-if="x.edit=='修改'">{{x.star}}</template>
+						<template v-else>
+							<select v-model="x.star">
+								<option value="">请选择</option>
+								<option v-for="s in starAll">{{s}}</option>
+							</select>
+						</template>
+					</td>
+					<td><a href="javascript:;" class="del" @click="del(index)">删除</a><a href="javascript:;" class="edit" @click="change(x)">{{x.edit}}</a></td>
+				</tr>
+			</table>
+		</div>
+		<div class="web-page">
+			<button @click="prevpage">上一页</button>
+			<button v-for="p in totalpage" :class="{active:page==p}" @click="PAGE(p)">{{p}}</button>
+			<button @click="nextpage">下一页</button>
+		</div>
+
+		<div class="web-form">
+			<table>
+				<tr>
+					<td>网站名称：<input type="text" id="name" v-model="name"></td>
+					<td>网址：<input type="text" id="url" v-model="url"></td>
+					<td>好评度：<select name="" id="star" v-model="star">
+						<option value="">请选择</option>
+						<option v-for="s in starAll">{{s}}</option>
+					</select></td>
+					<td width="18%"><input type="button" value="新增" @click="addBtn"><input type="button" value="重填" @click="reBtn"></td>
+				</tr>
+			</table>
+		</div>
+	</div>
+	<script>
+		var vm=new Vue({
+			el:'#vm',
+			data:{
+				temp:JSON.parse(localStorage.getItem('temp')) || [],
+				name:'',
+				url:'',
+				star:'',
+				starAll:['★','★★','★★★','★★★★','★★★★★'],
+				selected:'',
+				keyword:'',
+				checkBox:{
+					checked:false
+				},
+				checkdata:0,
+				page:1,
+				prepage:10,
+				delAll:[]
+			},
+			methods:{
+				//批量删除
+				checkeddel:function(){
+					var indexes=this.temp.map((x,index) => x.checked==true?index:-1).filter(index=>index>=0);
+					indexes=indexes.reverse();
+					for(var i=0;i<indexes.length;i++){
+						this.temp.splice([indexes[i]],1);
+					}
+					this.savedata();
+				},
+				//清空勾选
+				checkedPAGE:function(){
+					this.checkBox.checked=false;
+					this.temp.forEach(function(x){
+						x.checked=false;
+					})
+				},
+				// 当前页
+				PAGE:function(p){
+					this.page=p;
+					this.checkedPAGE();
+				},
+				//上一页
+				prevpage:function(){
+					if(this.page<=1){
+						this.page=1;
+					}else{
+						this.page--;
+					}
+					this.checkedPAGE();
+				},
+				//下一页
+				nextpage:function(){
+					if(this.page>=this.totalpage){
+						this.page=this.totalpage;
+					}else{
+						this.page++;
+					}
+					this.checkedPAGE();
+				},
+				//新增
+				addBtn:function(){
+					//console.log(this.name,this.url,this.star)
+					if(this.name==''){
+						alert("请输入网址名");
+						return false;
+					}
+					if(this.url==''){
+						alert("请输入网址");
+						return false;
+					}
+					if(this.star==''){
+						alert("请给予好评");
+						return false;
+					}
+					this.temp.push({"name":this.name,"url":this.url,"star":this.star,"edit":'修改',"checked":false});
+					this.savedata();
+					this.reBtn();
+				},
+				//重置
+				reBtn:function(){
+					this.name='';
+					this.url='';
+					this.star='';
+				},
+				//删除
+				del:function(index){
+					if(confirm("您确定要删除该记录？")){
+						this.temp.splice(index,1);
+					}
+					this.savedata();
+				},
+				//修改、保存
+				change:function(x){
+					if(x.edit=='修改'){
+						x.edit='保存';
+					}else{
+						x.edit='修改';
+						this.savedata();
+					}
+				},
+				//本地永久保存数据
+				savedata:function(){					
+					var jsonText=JSON.stringify(this.temp);
+					localStorage.setItem('temp',jsonText);
+				},
+				//全选
+				checkAll:function(){
+					this.checkBox.checked=!(this.checkBox.checked);
+					var start=(this.page-1)*this.prepage;
+					//console.log(this.checkBox.checked)
+					//console.log(start)
+					if(this.checkBox.checked){
+						this.checkdata=this.search.length;
+					}else{
+						this.checkdata=0;
+					}
+					for(var i=start;i<this.search.length+start;i++){
+						this.temp[i].checked=this.checkBox.checked;
+						//console.log(this.search[i]);
+					}
+					
+				},
+				//单项选
+				checkItem:function(index){
+					//console.log(this.temp[index].checked) false
+					if(this.search[index].checked==false){
+						this.checkdata++;
+						//console.log(1);
+					}else{
+						this.checkdata--;
+					}
+					//console.log(this.checkdata);
+					if(this.checkdata==this.search.length){
+						this.checkBox.checked=true;
+					}else{
+						this.checkBox.checked=false;
+					}
+				}
+				
+			},
+			computed:{
+				//搜索
+				search:function(){
+					var _keyword=this.keyword;
+					var selected=this.selected;
+					var newtemp=this.temp.filter(function(str){
+						if(selected){
+							return str[selected].indexOf(_keyword)!=-1;
+						}else{
+							return str['name'].indexOf(_keyword)!=-1 || str['url'].indexOf(_keyword)!=-1 || str['star'].indexOf(_keyword)!=-1
+
+						}
+						
+					});
+					var start=(this.page-1)*this.prepage,
+						end=this.page*this.prepage;
+					return newtemp.slice(start,end);
+
+				},
+				totalpage:function(){
+					return Math.ceil(this.temp.length/this.prepage);
+				}
+			}
+		})
+	</script>
+</body>
+</html>
